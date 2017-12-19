@@ -1,0 +1,64 @@
+load(file="F:\\R\\链家数据分析\\爬虫(10座城市).rdata")
+
+library(reshape2)
+city_data <- melt(data = data,id=c('楼盘名','性质', '价格', '面积', '地址')) #重塑数据
+#write.csv(x = city_data,file = "F:\\R\\链家数据分析\\city_data.csv",row.names = F)  #不懂在R中是怎么存储可借鉴CSV格式查看
+colnames(city_data)     #查看此时列名
+names(city_data)[6]<-"城市"   #将第六列名L1更改为"城市"
+city_data<-city_data[c(6,1:5)] #更改列名顺序
+colnames(city_data)           #再次查看列名
+
+city_data$城市  <- as.factor(city_data$城市)
+city_data$楼盘名<- as.vector(city_data$楼盘名)
+city_data$性质  <- as.factor(city_data$性质)
+city_data$面积  <-as.vector(city_data$面积)
+city_data$地址  <-as.vector(city_data$地址)
+city_data$价格 <- as.numeric(as.character(city_data$价格))
+#city_data$价格一开始为因子,因子转数值型时,应先将因子转成字符型再转成数值型
+
+#处理价格
+#is.na(city_data$价格)
+#gsub(pattern = "价格待定",replacement = 0,x = city_data$价格)
+#city_data$价格 <- na.omit(city_data$价格) #删除后价格变98行,其他仍为100行,报错
+#city_data <- na.omit(city_data)  其他地方如面积也存在缺失值,会删除比较多有用数据
+
+#for (i in 1:length(city_data$价格)) {
+#原先价格待定处变成缺失值,价格中还因为存在别墅为几百万一套,导致计量单位不懂,建议删除或者求均值。
+#city_data$价格[i]<- ifelse(city_data$价格[i]<5000|is.na(city_data$价格[i])==T,0,city_data$价格[i])
+#}
+city_data<-city_data[which(city_data$价格>3000),]
+
+library(plyr)
+city_price=ddply(city_data,'城市',summarize, mean=mean(价格))  #对数据框按城市进行分类总结,求均价
+#city_price$name <- c("北京","成都","广州","厦门","深圳"....)
+#city_price <- city_price[order(city_price$mean,decreasing = T),]
+
+#制作条形图
+library(ggplot2)
+ggplot(data = city_price,aes(x=城市,mean))+geom_bar(stat='identity',fill='skyblue')+
+  labs(x="房价",y="均价")
+#rev(reorder(城市,mean))  reorder()对数字由小到大排序,rev()对下标由大到小排序,形成倒序
+#stat='identity' 指不对数据做任何变化，默认为count,观察数量
+
+#制作面积图
+ggplot(data = city_price,aes(1:10,mean))+geom_point(shape=21,color='red')+geom_line(color='red')+
+  geom_area(alpha=0.5,fill='red')+
+  labs(x="房价",y="均价")
+
+#层次聚类
+hc <- hclust(dist(city_price$mean))
+plot(hc,hang = -1,labels = city_price$城市,xlab = '城市',ylab = '房价')
+
+#房子在哪里
+library(REmap)
+library(baidumap)
+coord =get_geo_position(as.vector(city_data$地址)) #地理位置与经纬度相互转换
+#remapB (markPointData = data.frame(coord$city),markPointData=markPointControl(symbol = 'pin',effect = F,symbolSize = 5,color='red'),geoData = coord)
+remapB(markPointData = data.frame(coord$city),
+       markPointTheme = markPointControl(symbol = "pin",
+                                         effect=F,
+                                         symbolSize = 5,
+                                         color="red"),
+       geoData = coord)
+
+
